@@ -6,7 +6,7 @@ window.addEventListener('resize', appHeight);
 window.addEventListener('orientationchange', appHeight);
 appHeight(); 
 
-const ENVIRONMENT = 'testing'; 
+const ENVIRONMENT = 'prod'; 
 
 if (ENVIRONMENT === 'testing') {
     window.addEventListener('DOMContentLoaded', () => {
