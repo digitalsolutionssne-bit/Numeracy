@@ -1,9 +1,9 @@
 // ==========================================
-// config.js - Application Configuration
+// backend/config.js - Application Configuration
 // ==========================================
 // ENVIRONMENT TOGGLE
 // Options: 'Exp' (Experimental) | 'Dev' (Development) | 'Prod' (Production)
-const ENV = 'Prod';
+const ENV = 'Dev';
 
 // PROD EXPIRY SCANNER TOGGLE (applies when ENV === 'Prod')
 // Options: 'offline' (Scan Offline button) | 'ai' (Scan using AI button)

@@ -333,9 +333,12 @@ manualCheckBtn.addEventListener('click', () => {
 // ==========================================
 function updateViewfinderModeUI(mode) {
   const isAi = mode === 'ai';
+  if (cameraModal) {
+    cameraModal.classList.toggle('ai-mode', isAi);
+  }
   if (cameraGuideHint) {
     cameraGuideHint.textContent = isAi
-      ? 'AI Scan: Line up the expiry date inside the box'
+      ? 'AI Scan: Point camera at the expiry date'
       : 'Line up the expiry date inside the box';
   }
   if (cameraCaptureBtn) {
@@ -434,38 +437,54 @@ function captureFromViewfinder() {
 
   const vw = cameraVideo.videoWidth;
   const vh = cameraVideo.videoHeight;
-  const vr = cameraVideo.getBoundingClientRect();
-  const gr = cameraGuideBox.getBoundingClientRect();
-
-  // Map guide box coordinates onto the underlying video frame accounting for object-fit: cover
-  const scale = Math.max(vr.width / vw, vr.height / vh);
-  const renderedW = vw * scale;
-  const renderedH = vh * scale;
-  const offsetX = (vr.width - renderedW) / 2;
-  const offsetY = (vr.height - renderedH) / 2;
-
-  const relX = gr.left - vr.left;
-  const relY = gr.top - vr.top;
-
-  let sx = (relX - offsetX) / scale;
-  let sy = (relY - offsetY) / scale;
-  let sw = gr.width / scale;
-  let sh = gr.height / scale;
-
-  // Give AI mode slightly wider padding so nearby EXP / BEST BEFORE labels stay in frame
   const isAi = activeScanMode === 'ai';
-  const padX = sw * (isAi ? 0.24 : 0.14);
-  const padY = sh * (isAi ? 0.35 : 0.22);
-  sx = Math.max(0, sx - padX);
-  sy = Math.max(0, sy - padY);
-  sw = Math.min(vw - sx, sw + padX * 2);
-  sh = Math.min(vh - sy, sh + padY * 2);
 
-  // Scale captured crop cleanly
-  const MAX_WIDTH = isAi ? 1280 : 960;
-  const outScale = sw > MAX_WIDTH ? MAX_WIDTH / sw : 1;
-  const outW = Math.max(32, Math.round(sw * outScale));
-  const outH = Math.max(32, Math.round(sh * outScale));
+  let sx = 0;
+  let sy = 0;
+  let sw = vw;
+  let sh = vh;
+  let outW;
+  let outH;
+
+  if (isAi) {
+    // AI mode: capture the full camera frame without cropping to the small guide rectangle
+    const MAX_SIDE = 1280;
+    const maxDim = Math.max(vw, vh);
+    const outScale = maxDim > MAX_SIDE ? MAX_SIDE / maxDim : 1;
+    outW = Math.max(32, Math.round(vw * outScale));
+    outH = Math.max(32, Math.round(vh * outScale));
+  } else {
+    const vr = cameraVideo.getBoundingClientRect();
+    const gr = cameraGuideBox.getBoundingClientRect();
+
+    // Map guide box coordinates onto the underlying video frame accounting for object-fit: cover
+    const scale = Math.max(vr.width / vw, vr.height / vh);
+    const renderedW = vw * scale;
+    const renderedH = vh * scale;
+    const offsetX = (vr.width - renderedW) / 2;
+    const offsetY = (vr.height - renderedH) / 2;
+
+    const relX = gr.left - vr.left;
+    const relY = gr.top - vr.top;
+
+    sx = (relX - offsetX) / scale;
+    sy = (relY - offsetY) / scale;
+    sw = gr.width / scale;
+    sh = gr.height / scale;
+
+    const padX = sw * 0.14;
+    const padY = sh * 0.22;
+    sx = Math.max(0, sx - padX);
+    sy = Math.max(0, sy - padY);
+    sw = Math.min(vw - sx, sw + padX * 2);
+    sh = Math.min(vh - sy, sh + padY * 2);
+
+    // Scale captured crop cleanly
+    const MAX_WIDTH = 960;
+    const outScale = sw > MAX_WIDTH ? MAX_WIDTH / sw : 1;
+    outW = Math.max(32, Math.round(sw * outScale));
+    outH = Math.max(32, Math.round(sh * outScale));
+  }
 
   const canvas = document.createElement('canvas');
   canvas.width = outW;
@@ -535,6 +554,70 @@ async function processImagePixels(rgbaData, width, height, isCroppedStrip) {
 // ==========================================
 // Scanner 2: Gemini Flash AI Processing
 // ==========================================
+function getConfiguredGasApiUrl() {
+  if (typeof API_URL !== 'string') return '';
+  const trimmed = API_URL.trim();
+  return /^https:\/\/.+/i.test(trimmed) ? trimmed : '';
+}
+
+function isStaticFrontendHost() {
+  const host = (window.location.hostname || '').toLowerCase();
+  return host.endsWith('.github.io') || window.location.protocol === 'file:';
+}
+
+async function postToGasBackend(gasUrl, payload) {
+  // Use text/plain to send a CORS simple request so Google Apps Script does not fail on OPTIONS preflight
+  const response = await fetch(gasUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8'
+    },
+    redirect: 'follow',
+    body: JSON.stringify(payload)
+  });
+
+  const text = await response.text();
+  let data = null;
+  try {
+    data = JSON.parse(text);
+  } catch (_err) {
+    throw new Error(
+      'AI backend returned an unexpected response. Verify Google Apps Script Web App deployment and access settings.'
+    );
+  }
+
+  return { response, data };
+}
+
+async function requestAiExpiryScan(payload) {
+  const gasUrl = getConfiguredGasApiUrl();
+
+  // GitHub Pages & static hosts cannot serve POST /api/scan-expiry (returns HTTP 405) -> call Apps Script directly
+  if (isStaticFrontendHost()) {
+    if (!gasUrl) {
+      throw new Error('AI scan backend URL is not configured in config.js.');
+    }
+    return postToGasBackend(gasUrl, payload);
+  }
+
+  // Node.js / AI Studio server -> call local /api/scan-expiry first
+  const localResponse = await fetch('/api/scan-expiry', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  // Fallback for custom-domain static hosting (e.g. GitHub Pages custom domain) that returns 405/404 for POST /api/*
+  if ((localResponse.status === 405 || localResponse.status === 404) && gasUrl) {
+    return postToGasBackend(gasUrl, payload);
+  }
+
+  const data = await localResponse.json().catch(() => ({}));
+  return { response: localResponse, data };
+}
+
 async function processImageWithAI(imageBase64, mimeType) {
   if (!navigator.onLine) {
     showToast(
@@ -550,27 +633,31 @@ async function processImageWithAI(imageBase64, mimeType) {
   setProcessingUI(true, 'Reading date...', 'Scanning with Gemini Flash AI...');
 
   try {
-    const response = await fetch('/api/scan-expiry', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        imageBase64,
-        mimeType: mimeType || 'image/jpeg',
-        todayIso: formatLocalIsoDate(today)
-      })
-    });
+    const payload = {
+      imageBase64,
+      mimeType: mimeType || 'image/jpeg',
+      todayIso: formatLocalIsoDate(today)
+    };
 
-    const data = await response.json().catch(() => ({}));
+    const { response, data } = await requestAiExpiryScan(payload);
 
-    if (!response.ok) {
-      throw new Error(data.error || `AI scan failed (${response.status})`);
+    if (!response.ok || (data && data.error)) {
+      const errMsg =
+        data && typeof data.error === 'string'
+          ? data.error
+          : data && typeof data.message === 'string'
+            ? data.message
+            : `AI scan failed (${response.status})`;
+      throw new Error(errMsg);
+    }
+
+    if (data && data.rawText === 'Sample OCR Data' && !data.year) {
+      throw new Error('Apps Script backend is outdated. Deploy backend/Code.js to Google Apps Script.');
     }
 
     setProcessingUI(false);
 
-    if (data.foundDate && data.year && data.month && data.day) {
+    if (data && data.foundDate && data.year && data.month && data.day) {
       const detectedDate = new Date(data.year, data.month - 1, data.day);
       detectedDate.setHours(0, 0, 0, 0);
 

@@ -9,16 +9,16 @@ This repository has been restructured to facilitate modular development, isolate
   - `css/`: Stylesheets.
   - `pages/`: HTML views for the application.
   - `js/`: Modular JavaScript logic.
-    - `core/`: Core initialization and configurations (`config.js`, `app.js`).
+    - `core/`: Core initialization logic (`app.js`).
     - `utils/`: Shared utilities (`ui.js`, `rolodex.js`).
     - `pages/`: Page-specific scripts, directly mapping to HTML views.
-- `backend/`: Contains Google Apps Script backend logic.
+- `backend/`: Contains Google Apps Script backend logic (`Code.js`) and shared application configuration (`config.js`).
 - `assets/`: Contains images and application icons.
 - `.github/workflows/`: Contains GitHub Actions for continuous deployment.
 
 ## Environment Management
 
-You can toggle between the 3 environments (Exp, Dev, Prod) by altering the `ENV` constant inside `frontend/js/core/config.js`. 
+You can toggle between the 3 environments (Exp, Dev, Prod) by altering the `ENV` constant inside `backend/config.js`.
 - **Dev**: Displays a persistent red `Testing` banner.
 - **Exp**: Displays a persistent purple `Experimentation` banner.
 - **Prod**: Operates normally with no banner.
@@ -51,3 +51,9 @@ Go to your GitHub repository **Settings > Secrets and variables > Actions** and 
 3. `CLASP_CREDENTIALS`: Paste the credentials JSON you copied in Part 1. *(Note: The workflow is explicitly built to parse custom dictionary formats containing `tokens.default` as well as native `.clasprc.json` formats).*
 
 Future commits to the `main` branch that modify files in the `backend/` directory will now trigger the workflow, dynamically create the `.clasp.json` configuration on the server, push the code, and publish a new version without changing your Web App URL.
+
+**Part 4: Configure Gemini API Key in Google Apps Script (for GitHub Pages AI Scan)**
+1. Open your Google Apps Script project > **Project Settings** (gear icon) > **Script Properties** > **Add script property**.
+2. Add property `GEMINI_API_KEY` with your Gemini API key (and optionally `GEMINI_FLASH_MODEL` if you want to override the default model).
+3. In the Apps Script editor, run `doGet` once (or re-authorize your Web App deployment) if prompted to grant external URL fetch permission (`UrlFetchApp`).
+4. Verify by opening your Apps Script `/exec` URL in a browser — it should return `{"ok":true,...,"configured":true}`.
