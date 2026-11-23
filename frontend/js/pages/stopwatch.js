@@ -26,16 +26,19 @@ function toggleTimer() {
         startStopBtn.innerHTML = "▷ START";
         startStopBtn.style.backgroundColor = "var(--primary-color)";
         resetBtn.style.visibility = "visible"; 
+        if (typeof window.numpalSetBusy === 'function') window.numpalSetBusy(false);
     } else {
         timerInterval = setInterval(() => { totalSeconds++; updateDisplay(); }, 1000);
         startStopBtn.innerHTML = "⏸ STOP";
         startStopBtn.style.backgroundColor = "var(--error-color)"; 
         resetBtn.style.visibility = "hidden";
+        if (typeof window.numpalSetBusy === 'function') window.numpalSetBusy(true);
     }
     isRunning = !isRunning;
 }
 
 function resetTimer() {
+    const wasRunning = isRunning;
     clearInterval(timerInterval);
     totalSeconds = 0;
     isRunning = false;
@@ -43,6 +46,7 @@ function resetTimer() {
     startStopBtn.innerHTML = "▷ START";
     startStopBtn.style.backgroundColor = "var(--primary-color)";
     resetBtn.style.visibility = "hidden";
+    if (wasRunning && typeof window.numpalSetBusy === 'function') window.numpalSetBusy(false);
 }
 
 startStopBtn.addEventListener('click', toggleTimer);

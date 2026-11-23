@@ -84,7 +84,7 @@ renderGrid('wallet-grid-container', walletCounts, 'wallet-total');
 renderGrid('change-grid-container', changeCounts, 'change-total');
 
 window.goBack = function() {
-    window.speechSynthesis.cancel();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (currentStep === 3) window.goToStep2();
     else if (currentStep === 2) window.goToStep1();
     else window.location.href = '../../index.html';
@@ -103,7 +103,9 @@ window.goToStep1 = function() {
 
 window.goToStep2 = function() {
     if (parseFloat(totalWallet) === 0) {
-        alert("Your wallet is empty! Please add money first.");
+        if (typeof window.showToast === 'function') {
+            window.showToast("Your wallet is empty! Please add money first.", true);
+        }
         return;
     }
     document.getElementById('step2-wallet-total').innerText = totalWallet;
@@ -302,7 +304,7 @@ window.checkChange = function() {
 }
 
 window.retryChange = function() {
-    window.speechSynthesis.cancel();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     document.getElementById('sheet-backdrop').classList.remove('show');
     document.getElementById('result-sheet').classList.remove('show');
     changeCounts = { 50:0, 10:0, 5:0, 2:0, 1:0, 0.5:0, 0.2:0, 0.1:0, 0.05:0 };
@@ -311,6 +313,12 @@ window.retryChange = function() {
 }
 
 window.playTTS = function() {
+    if (!('speechSynthesis' in window)) {
+        if (typeof window.showToast === 'function') {
+            window.showToast("Speech playback is not supported on this device.", true);
+        }
+        return;
+    }
     window.speechSynthesis.cancel();
     const diffText = document.getElementById('wrong-change-diff').innerText;
     const textToRead = `Sorry, wrong change. ${diffText}`;

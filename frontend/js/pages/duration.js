@@ -29,7 +29,10 @@ window.openTimePicker = function(type) {
 }
 
 window.calculateDuration = function() {
-    if(!state.start || !state.end) return alert("Please set both times first.");
+    if(!state.start || !state.end) {
+        if (typeof window.showToast === 'function') window.showToast("Please set both times first.", true);
+        return;
+    }
 
     const startD = new Date(); startD.setHours(state.start.hr24, state.start.min, 0);
     const endD = new Date(); endD.setHours(state.end.hr24, state.end.min, 0);

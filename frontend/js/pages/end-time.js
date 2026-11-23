@@ -38,7 +38,10 @@ window.openDurationPicker = function() {
 }
 
 window.calculateEndTime = function() {
-    if(!state.start || !state.duration) return alert("Please set both fields first.");
+    if(!state.start || !state.duration) {
+        if (typeof window.showToast === 'function') window.showToast("Please set both fields first.", true);
+        return;
+    }
 
     const startD = new Date();
     startD.setHours(state.start.hr24, state.start.min, 0);
